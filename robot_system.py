@@ -1,35 +1,51 @@
+from math import isfinite
+
+
 class Robot:
     def __init__(self, robot_id, name, robot_type, battery, status):
         self.robot_id = robot_id
         self.name = name
         self.robot_type = robot_type
         # 受保护属性 封装
-        self._battery = battery
+        self.battery = battery
         self._status = status
+
+    @property
+    def battery(self):
+        return self._battery
+
+    @battery.setter
+    def battery(self, value):
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not isfinite(value)
+            or not 0 <= value <= 100
+        ):
+            raise ValueError("电量必须是0到100之间的有限数值")
+        self._battery = value
 
     def show_info(self):
         """展示机器人全部信息"""
         print(f"\n【机器人ID:{self.robot_id}】 名称:{self.name}")
-        print(f"设备类型:{self.robot_type},电量:{self._battery}%,状态:{self._status}")
+        print(f"设备类型:{self.robot_type},电量:{self.battery}%,状态:{self._status}")
 
     def work(self):
         """机器人工作，消耗电量"""
         if self._status != "工作中":
             print(f"{self.name} 当前不在工作状态，无法启动工作！")
             return
-        if self._battery < 10:
+        if self.battery < 10:
             print(f"{self.name}电量过低，不能继续工作，请充电！")
             return
-        self._battery -= 10
-        print(f"{self.name}正在执行普通任务，消耗10%电量，剩余电量{self._battery}%")
+        self.battery -= 10
+        print(f"{self.name}正在执行普通任务，消耗10%电量，剩余电量{self.battery}%")
 
     def charge(self):
         """充电，电量上限100"""
         add = 30
-        self._battery += add
-        if self._battery > 100:
-            self._battery = 100
-        print(f"{self.name}完成充电，+{add}%，当前电量{self._battery}%")
+        self.battery = min(100, self.battery + add)
+        print(f"{self.name}完成充电，+{add}%，当前电量{self.battery}%")
 
     def change_status(self, new_status):
         """修改运行状态"""
@@ -48,11 +64,11 @@ class PatrolRobot(Robot):
         if self._status != "工作中":
             print(f"{self.name}不在工作状态，无法巡逻！")
             return
-        if self._battery < 20:
+        if self.battery < 20:
             print(f"{self.name}电量不足，巡逻任务需要更多电量，请充电！")
             return
-        self._battery -= 20
-        print(f"【巡逻机器人】{self.name}正在区域 {self.patrol_area} 巡逻，消耗20%电量，剩余{self._battery}%")
+        self.battery -= 20
+        print(f"【巡逻机器人】{self.name}正在区域 {self.patrol_area} 巡逻，消耗20%电量，剩余{self.battery}%")
 
     def show_info(self):
         super().show_info()

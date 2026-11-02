@@ -1,5 +1,6 @@
 import sys
 import random
+from math import isfinite
 from datetime import datetime
 
 
@@ -31,8 +32,8 @@ def save_money(balance):
     while True:
         try:
             money = float(input("\n请输入存款金额："))
-            if money <= 0:
-                print("输入错误！存款金额必须大于0，请重新输入！")
+            if not isfinite(money) or money <= 0:
+                print("输入错误！存款金额必须是大于0的有限数字，请重新输入！")
                 continue
             new_balance = balance + money
             # 生成6位流水号
@@ -55,8 +56,8 @@ def draw_money(balance):
     while True:
         try:
             money = float(input("\n请输入取款金额："))
-            if money <= 0:
-                print("取款金额必须大于0！")
+            if not isfinite(money) or money <= 0:
+                print("取款金额必须是大于0的有限数字！")
                 continue
             if money > balance:
                 print(f"余额不足！当前余额 {balance} 元，无法取出 {money} 元")
