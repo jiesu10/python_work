@@ -1,7 +1,7 @@
 import os
 import datetime
-import cv2
-import numpy as np
+import json
+from html import escape
 
 DATA_FILE = "todo_data.txt"
 
@@ -14,16 +14,32 @@ class TodoItem:
         self.finished = finished
 
     def to_line(self):
-        return f"{self.title}|{self.priority}|{self.deadline}|{self.finished}"
+        return json.dumps(
+            [self.title, self.priority, self.deadline, self.finished],
+            ensure_ascii=False,
+        )
 
     @staticmethod
     def from_line(line: str):
         line = line.strip()
         if not line:
             return None
-        parts = line.split("|")
-        if len(parts) != 4:
+        try:
+            parts = json.loads(line)
+        except json.JSONDecodeError:
+            # Keep reading records written by older versions of this app.
+            parts = line.split("|")
+        if (
+            not isinstance(parts, list)
+            or len(parts) != 4
+            or not all(isinstance(value, str) for value in parts)
+        ):
             return None
+        try:
+            parts[2] = datetime.datetime.strptime(parts[2], "%Y-%m-%d").strftime("%Y-%m-%d")
+        except ValueError:
+            # Preserve legacy records with invalid dates instead of dropping them.
+            pass
         return TodoItem(parts[0], parts[1], parts[2], parts[3])
 
 
@@ -81,6 +97,37 @@ class TodoManager:
             print(f"🗑️任务{idx}已删除")
         else:
             print("取消删除")
+
+    def edit_task(self, idx, title=None, priority=None, deadline=None):
+        real_idx = idx - 1
+        if not (0 <= real_idx < len(self.todo_list)):
+            print("❌编号不存在！")
+            return
+        if title is not None and not title.strip():
+            print("❌标题不能为空！")
+            return
+        if priority is not None and priority not in ("高", "中", "低"):
+            print("❌优先级只能是：高、中、低！")
+            return
+        if deadline is not None:
+            try:
+                deadline = datetime.datetime.strptime(deadline, "%Y-%m-%d").strftime("%Y-%m-%d")
+            except ValueError:
+                print("❌日期格式错误！")
+                return
+        if title is None and priority is None and deadline is None:
+            print("没有需要修改的内容。")
+            return
+
+        task = self.todo_list[real_idx]
+        if title is not None:
+            task.title = title.strip()
+        if priority is not None:
+            task.priority = priority
+        if deadline is not None:
+            task.deadline = deadline
+        self.save_to_file()
+        print(f"✅任务{idx}已更新。")
 
     def show_finished(self):
         finished = [t for t in self.todo_list if t.finished == "完成"]
@@ -140,7 +187,11 @@ th,td {border:1px solid #666;padding:8px;text-align:center;}
 <tr><th>序号</th><th>标题</th><th>优先级</th><th>截止日期</th><th>状态</th></tr>'''
         for idx,t in enumerate(self.todo_list):
             cls = 'overdue' if (t.finished=="未完成" and t.deadline < today_str) else ''
-            html += f'<tr class="{cls}"><td>{idx+1}</td><td>{t.title}</td><td>{t.priority}</td><td>{t.deadline}</td><td>{t.finished}</td></tr>'
+            html += (
+                f'<tr class="{cls}"><td>{idx+1}</td>'
+                f'<td>{escape(t.title)}</td><td>{escape(t.priority)}</td>'
+                f'<td>{escape(t.deadline)}</td><td>{escape(t.finished)}</td></tr>'
+            )
         html += '''</table>
 </body>
 </html>'''
@@ -149,6 +200,13 @@ th,td {border:1px solid #666;padding:8px;text-align:center;}
         print(f"📄HTML报告导出成功 → {filename}")
 
     def draw_chart(self):
+        try:
+            import cv2
+            import numpy as np
+        except ImportError:
+            print("❌图表功能需要 OpenCV 和 NumPy，请运行：python -m pip install -r requirements.txt")
+            return
+
         high = sum(1 for t in self.todo_list if t.priority=="高")
         mid = sum(1 for t in self.todo_list if t.priority=="中")
         low = sum(1 for t in self.todo_list if t.priority=="低")
@@ -176,14 +234,17 @@ th,td {border:1px solid #666;padding:8px;text-align:center;}
         print("📊统计图已保存 chart.png")
 
 
-def input_deadline():
+def input_deadline(allow_empty=False):
     while True:
-        s = input("请输入截止日期(YYYY‑MM‑DD):").strip()
+        prompt = "请输入截止日期(YYYY-MM-DD)（回车保留原日期）：" if allow_empty else "请输入截止日期(YYYY-MM-DD):"
+        s = input(prompt).strip()
+        if allow_empty and not s:
+            return None
         try:
-            datetime.datetime.strptime(s,"%Y-%m-%d")
-            return s
+            parsed = datetime.datetime.strptime(s, "%Y-%m-%d")
+            return parsed.strftime("%Y-%m-%d")
         except ValueError:
-            print("❌日期格式错误！例子：2026‑10‑20")
+            print("❌日期格式错误！例子：2026-10-20")
 
 
 def main():
@@ -194,11 +255,12 @@ def main():
         print("2 查看全部任务")
         print("3 标记任务完成")
         print("4 删除任务")
-        print("5 查看已完成任务")
-        print("6 按截止日期排序")
-        print("7 任务统计")
-        print("8 导出HTML报告")
-        print("9 生成优先级统计图")
+        print("5 修改任务")
+        print("6 查看已完成任务")
+        print("7 按截止日期排序")
+        print("8 任务统计")
+        print("9 导出HTML报告")
+        print("10 生成优先级统计图")
         print("0 退出程序")
         sel = input("请输入功能编号：").strip()
         if sel == "1":
@@ -231,21 +293,36 @@ def main():
             except ValueError:
                 print("❌请输入数字！")
         elif sel == "5":
-            mgr.show_finished()
+            mgr.show_all()
+            try:
+                num = int(input("输入要修改的任务编号："))
+            except ValueError:
+                print("❌请输入数字！")
+                continue
+            title = input("输入新标题（回车保留）：").strip()
+            while True:
+                prio = input("输入新优先级(高/中/低，回车保留)：").strip()
+                if not prio or prio in ("高", "中", "低"):
+                    break
+                print("只能输入：高、中、低！")
+            deadline = input_deadline(allow_empty=True)
+            mgr.edit_task(num, title or None, prio or None, deadline)
         elif sel == "6":
-            mgr.sort_by_deadline()
+            mgr.show_finished()
         elif sel == "7":
-            mgr.print_stat()
+            mgr.sort_by_deadline()
         elif sel == "8":
-            mgr.export_html()
+            mgr.print_stat()
         elif sel == "9":
+            mgr.export_html()
+        elif sel == "10":
             mgr.draw_chart()
         elif sel == "0":
             mgr.save_to_file()
             print("👋程序退出，数据已保存。")
             break
         else:
-            print("❌无效编号，请输入0‑9")
+            print("❌无效编号，请输入0-10")
 
 
 if __name__ == "__main__":

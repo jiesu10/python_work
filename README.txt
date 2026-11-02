@@ -1,7 +1,11 @@
 # Python Todo 待办清单项目 
 # Python 目标一、目标二、目标三作业
 
-仓库地址：https://github.com/jiesu10/python-to-do
+仓库地址：https://github.com/jiesu10/python_work
+
+依赖安装：
+运行待办清单的图表功能前，请执行：python -m pip install -r requirements.txt
+待办清单的其他功能不依赖第三方库。
 
 大作业功能：
 1. 添加、删除、修改待办任务
@@ -16,13 +20,13 @@
 4. 格式化汇总报告输出，关键步骤中文注释
 
 目标二：
-银行ATM自助取款系统（atm.py）
+银行ATM自助取款系统（atm_system.py）
 1. 循环菜单：查询余额、存款、取款、退出系统
 2. 金额合法性校验、交易流水号与交易时间输出
 3. 输入容错，非法输入提示重新选择
 
 目标三：
-实验室机器人信息管理系统（robot.py）
+实验室机器人信息管理系统（robot_system.py）
 1. 父类Robot：封装机器人属性，实现工作、充电、状态修改
 2. 保护属性封装，电量做0‑100边界约束
 3. 子类PatrolRobot继承并重写work，演示继承与多态
